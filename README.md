@@ -2,6 +2,11 @@
 
 A focus timer for tradespeople and freelancers — knock out your admin (quotes, invoices, social posts) in short "On the Clock" sessions, earn materials, and build out Buddy the Apprentice's workshop, garage, and van.
 
+Two implementations live in this repo:
+
+- **`mobile/` — the Flutter app (iOS-first, primary).** Adds the mini buddy guard crew that keeps you away from distracting apps. See [mobile/README.md](mobile/README.md).
+- **Repo root — the original React web MVP** (the sections below).
+
 ## MVP feature set
 
 - **On the Clock timer** — 25/45/60 min Pomodoro-style focus sessions, tagged by category (invoicing, quoting, social, admin) or linked directly to a job on your list.
