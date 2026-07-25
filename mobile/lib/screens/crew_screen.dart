@@ -16,12 +16,24 @@ class CrewScreen extends StatefulWidget {
 class _CrewScreenState extends State<CrewScreen> {
   final _appController = TextEditingController();
   bool _blockingAvailable = false;
+  bool _authorized = false;
+  bool _hasSelection = false;
 
   @override
   void initState() {
     super.initState();
-    AppBlockService.isBlockingAvailable().then((available) {
-      if (mounted) setState(() => _blockingAvailable = available);
+    _refreshBlockingState();
+  }
+
+  Future<void> _refreshBlockingState() async {
+    final available = await AppBlockService.isBlockingAvailable();
+    final authorized = available && await AppBlockService.isAuthorized();
+    final hasSelection = authorized && await AppBlockService.hasSelection();
+    if (!mounted) return;
+    setState(() {
+      _blockingAvailable = available;
+      _authorized = authorized;
+      _hasSelection = hasSelection;
     });
   }
 
@@ -67,7 +79,49 @@ class _CrewScreenState extends State<CrewScreen> {
               fontSize: 12, color: theme.colorScheme.onSurfaceVariant),
         ),
         const SizedBox(height: 8),
-        if (!_blockingAvailable)
+        if (_blockingAvailable)
+          Container(
+            padding: const EdgeInsets.all(12),
+            margin: const EdgeInsets.only(bottom: 8),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surfaceContainerHighest,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _authorized
+                      ? (_hasSelection
+                          ? '🛡️ Shield mode is on: the apps you picked are '
+                              'blocked for real while you\'re on the clock.'
+                          : '🛡️ Shield mode is ready — pick which apps to '
+                              'block during focus sessions.')
+                      : '🛡️ This device supports real app blocking via '
+                          'Screen Time. Grant access to let the crew '
+                          'physically block your apps mid-session.',
+                  style: TextStyle(
+                      fontSize: 11,
+                      color: theme.colorScheme.onSurfaceVariant),
+                ),
+                const SizedBox(height: 8),
+                FilledButton.tonal(
+                  onPressed: () async {
+                    if (!_authorized) {
+                      await AppBlockService.requestAuthorization();
+                    } else {
+                      await AppBlockService.pickApps();
+                    }
+                    await _refreshBlockingState();
+                  },
+                  child: Text(_authorized
+                      ? 'Choose apps to shield'
+                      : 'Enable Screen Time access'),
+                ),
+              ],
+            ),
+          )
+        else
           Container(
             padding: const EdgeInsets.all(10),
             margin: const EdgeInsets.only(bottom: 8),
@@ -76,10 +130,9 @@ class _CrewScreenState extends State<CrewScreen> {
               borderRadius: BorderRadius.circular(10),
             ),
             child: Text(
-              'ℹ️ Reminder mode: full iOS app blocking uses the Screen Time '
-              'API and ships once the Family Controls entitlement is approved. '
-              'Until then the crew watches the shift and calls out when you '
-              'sneak off.',
+              'ℹ️ Reminder mode: on this build the crew watches the shift '
+              'and calls out when you sneak off. On iOS, Screen Time '
+              'blocking makes it physical.',
               style: TextStyle(
                   fontSize: 11, color: theme.colorScheme.onSurfaceVariant),
             ),

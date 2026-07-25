@@ -28,18 +28,24 @@ flutter run -d <iphone>
 flutter build ipa        # release
 ```
 
-The iOS project is set up with display name **Site Buddy** (bundle org `com.sitebuddy`). The Runner builds unmodified from the standard Flutter template except for the app-block platform channel described below.
+The iOS project uses display name **Site Buddy**, bundle ID **`com.sitebuddy.app`**, deployment target iOS 16.
 
-## Real app blocking on iOS (roadmap)
+## Real app blocking on iOS (Screen Time)
 
-True app blocking uses Apple's Screen Time stack — `FamilyControls`, `ManagedSettings`, and `DeviceActivity` — which requires the `com.apple.developer.family-controls` entitlement granted by Apple to a real bundle ID.
+App blocking is fully implemented with Apple's Screen Time stack:
 
-The plumbing is already in place:
+- **Native** (`ios/Runner/AppDelegate.swift`): `AuthorizationCenter` authorization, the system `FamilyActivityPicker` for choosing which apps to shield (selections are opaque tokens — the app never learns which apps were picked), and a `ManagedSettingsStore` shield raised for the length of each focus session.
+- **Dart** (`lib/services/app_block.dart` + Crew tab): shows "Enable Screen Time access" → "Choose apps to shield" when the build supports blocking, and falls back to guard reminder mode everywhere else (web, tests, Android for now).
+- **Entitlement**: `ios/Runner/Runner.entitlements` declares `com.apple.developer.family-controls`, wired into all Runner build configurations.
 
-- Dart side: `lib/services/app_block.dart` calls the `sitebuddy/appblock` method channel (`isBlockingAvailable`, `startShield`, `stopShield`) and degrades gracefully.
-- Native side: `ios/Runner/AppDelegate.swift` registers the channel and currently reports blocking unavailable.
+### Shipping checklist
 
-Until the entitlement is approved, the app runs in **guard reminder mode**: the crew watches the session, and app-switches are detected via the app lifecycle and called out. To ship full blocking, request the entitlement, then replace the stubbed channel handler with a `ManagedSettingsStore` shield + `FamilyActivityPicker` selection.
+1. **Register the bundle ID** `com.sitebuddy.app` in [Certificates, Identifiers & Profiles](https://developer.apple.com/account/resources/identifiers/list) (or change `PRODUCT_BUNDLE_IDENTIFIER` in the Xcode project to one you prefer — it appears once per build configuration).
+2. **Development builds work immediately**: open `ios/Runner.xcworkspace`, select your team under Signing & Capabilities (Xcode will add the Family Controls *(development)* capability from the entitlements file), and `flutter run` on a device. Screen Time APIs need a physical device — the simulator can't authorize.
+3. **Request the distribution entitlement** at [developer.apple.com/contact/request/family-controls-distribution](https://developer.apple.com/contact/request/family-controls-distribution), signed in as the Account Holder, for `com.sitebuddy.app`. Describe the app as a personal digital-wellbeing focus timer where users voluntarily shield their own distracting apps during self-started focus sessions, with no collection of usage data for advertising or profiling. Typical turnaround is days to a few weeks.
+4. Once approved, enable Family Controls (distribution) on the App ID, regenerate provisioning profiles, and `flutter build ipa`.
+
+Known edge: if the app is force-quit mid-session, the shield stays up until the next launch reconciles the expired session. Scheduling `DeviceActivityMonitor` (same entitlement family) to auto-lower the shield at the session's end time is the natural follow-up.
 
 ## Web build note
 
